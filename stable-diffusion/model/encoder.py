@@ -180,6 +180,7 @@ class VAE_Encoder(nn.Sequential):
         # yi = e^xi
         variance = log_variance.exp()
 
+        # (batch_size, 4, height/8, width/8) -> (batch_size, 4, height/8, width/8)
         std_dev = variance.sqrt()
 
         # Transform N(0, 1) -> N(mean, stdev)
