@@ -4,138 +4,119 @@ from torch.nn import functional as F
 import math
 
 class SelfAttention(nn.Module):
-    def __init__(
-            self,
-            num_heads: int,
-            d_embed: int,
-            input_projection_bias = True,
-            output_projection_bias = True,
-        ) -> None:
+    def __init__(self, n_heads, d_embed, in_proj_bias=True, out_proj_bias=True):
         super().__init__()
+        # This combines the Wq, Wk and Wv matrices into one matrix
+        self.in_proj = nn.Linear(d_embed, 3 * d_embed, bias=in_proj_bias)
+        # This one represents the Wo matrix
+        self.out_proj = nn.Linear(d_embed, d_embed, bias=out_proj_bias)
+        self.n_heads = n_heads
+        self.d_head = d_embed // n_heads
 
-        """
-        The Linear layer is commonly used to create a linear transformation from one layer
-        to another. It applies a linear transformation to the incoming data. Here's a breakdown
-        of its parameters:
+    def forward(self, x, causal_mask=False):
+        # x: # (Batch_Size, Seq_Len, Dim)
 
-        in_features: The size of each input sample. This is the number of features in the input
-        data that is fed into the layer. For example, if your input data is a vector of size 10,
-        then in_features=10.
+        # (Batch_Size, Seq_Len, Dim)
+        input_shape = x.shape 
+        
+        # (Batch_Size, Seq_Len, Dim)
+        batch_size, sequence_length, d_embed = input_shape 
 
-        out_features: The size of each output sample. This parameter specifies the size of the
-        output from the layer. If you want the layer to output a vector of size 5, you would set
-        out_features=5.
+        # (Batch_Size, Seq_Len, H, Dim / H)
+        interim_shape = (batch_size, sequence_length, self.n_heads, self.d_head) 
 
-        bias: A boolean value that indicates whether a bias vector should be added to the output.
-        The default value is True, which means that the layer will learn an additive bias for each
-        output feature. If set to False, no bias is added.
-        """
-        # https://pytorch.org/docs/stable/generated/torch.nn.Linear.html
-        self.input_projection = nn.Linear(d_embed, 3 * d_embed, bias=input_projection_bias)
+        # (Batch_Size, Seq_Len, Dim) -> (Batch_Size, Seq_Len, Dim * 3) -> 3 tensor of shape (Batch_Size, Seq_Len, Dim)
+        q, k, v = self.in_proj(x).chunk(3, dim=-1)
+        
+        # (Batch_Size, Seq_Len, Dim) -> (Batch_Size, Seq_Len, H, Dim / H) -> (Batch_Size, H, Seq_Len, Dim / H)
+        q = q.view(interim_shape).transpose(1, 2)
+        k = k.view(interim_shape).transpose(1, 2)
+        v = v.view(interim_shape).transpose(1, 2)
 
-        self.output_projection = nn.Linear(d_embed, d_embed, bias=output_projection_bias)
-
-        self.num_heads = num_heads
-
-        self.d_heads = d_embed // num_heads
-
-    def forward(self, x: torch.Tensor, causal_mask = False):
-        # x: (batch_size, seq_length, dim)
-
-        input_shape = x.shape
-        batch_size, sequence_length, d_embed = input_shape
-
-        interim_shape = (batch_size, sequence_length, self.num_heads, self.d_heads)
-
-        # (batch_size, sequence_length, dimension) -> (batch_size, sequence_length, dimension * 3)
-        # chunk => 3 tensors of shape (batch_size, sequence_length, dimension)
-        query, key, value = self.input_projection(x).chunk(3, dim=-1)
-
-        # (batch_size, sequence_length, dimension) -> (batch_size, sequence_length, head, dimension / head)
-        # transpose => (batch_size, head, sequence_length, dimension / head)
-        query = query.view(interim_shape).transpose(1, 2)
-        key = key.view(interim_shape).transpose(1, 2)
-        value = value.view(interim_shape).transpose(1, 2)
-
-        # (batch_size, head, sequence_length, sequence_length)
-        weight = query @ key.transpose(-1, -2)
-
+        # (Batch_Size, H, Seq_Len, Dim / H) @ (Batch_Size, H, Dim / H, Seq_Len) -> (Batch_Size, H, Seq_Len, Seq_Len)
+        weight = q @ k.transpose(-1, -2)
+        
         if causal_mask:
-            # https://pytorch.org/docs/stable/generated/torch.ones_like.html
-            # https://pytorch.org/docs/stable/generated/torch.triu.html
-            # mask where the upper triangle (above the principal diagonal) is maded up of 1
-            mask = torch.ones_like(weight, dtype=torch.bool).triu(1)
+            # Mask where the upper triangle (above the principal diagonal) is 1
+            mask = torch.ones_like(weight, dtype=torch.bool).triu(1) 
+            # Fill the upper triangle with -inf
+            weight.masked_fill_(mask, -torch.inf) 
+        
+        # Divide by d_k (Dim / H). 
+        # (Batch_Size, H, Seq_Len, Seq_Len) -> (Batch_Size, H, Seq_Len, Seq_Len)
+        weight /= math.sqrt(self.d_head) 
 
-            weight.masked_fill(mask, -torch.inf)
+        # (Batch_Size, H, Seq_Len, Seq_Len) -> (Batch_Size, H, Seq_Len, Seq_Len)
+        weight = F.softmax(weight, dim=-1) 
 
-        weight /= math.sqrt(self.d_heads)
+        # (Batch_Size, H, Seq_Len, Seq_Len) @ (Batch_Size, H, Seq_Len, Dim / H) -> (Batch_Size, H, Seq_Len, Dim / H)
+        output = weight @ v
 
-        weight = F.softmax(weight, dim=-1)
+        # (Batch_Size, H, Seq_Len, Dim / H) -> (Batch_Size, Seq_Len, H, Dim / H)
+        output = output.transpose(1, 2) 
 
-        # (batch_size, heads, sequence_length, sequence_length) @ (batch_size, heads, sequence_length, dimensions / heads)
-        # => (batch_size, heads, sequence_length, dimension / heads)
-        output = weight @ value
+        # (Batch_Size, Seq_Len, H, Dim / H) -> (Batch_Size, Seq_Len, Dim)
+        output = output.reshape(input_shape) 
 
-        # (batch_size, heads, sequence_length, dimension / heads) -> (batch_size, sequence_length, heads, dimension / heads)
-        output = output.transpose(1, 2)
-
-        output = output.reshape(input_shape)
-
-        output = self.output_projection(output)
-
-        # (batch_size, sequence_length, dimension)
+        # (Batch_Size, Seq_Len, Dim) -> (Batch_Size, Seq_Len, Dim)
+        output = self.out_proj(output) 
+        
+        # (Batch_Size, Seq_Len, Dim)
         return output
 
 class CrossAttention(nn.Module):
-    def __init__(
-            self,
-            num_heads: int,
-            d_embed: int,
-            d_cross = int,
-            input_projection_bias = True,
-            output_projection_bias = True,
-        ) -> None:
+    def __init__(self, n_heads, d_embed, d_cross, in_proj_bias=True, out_proj_bias=True):
         super().__init__()
-
-        self.query_projection = nn.Linear(d_embed, d_embed, bias=input_projection_bias)
-        self.key_projection = nn.Linear(d_cross, d_embed, bias=input_projection_bias)
-        self.values_projection = nn.Linear(d_cross, d_embed, bias=input_projection_bias)
-
-        self.output_projection = nn.Linear(d_embed, d_embed, bias=output_projection_bias)
-
-        self.num_heads = num_heads
-        self.d_heads = d_embed // num_heads
-
-    def forward(self, x: torch.Tensor, y: torch.Tensor):
-        # x (latent): (batch_size, sequence_length_query, dim_query)
-        # y (context): (batch_size, sequence_length_key_value, dim_key_value)
+        self.q_proj   = nn.Linear(d_embed, d_embed, bias=in_proj_bias)
+        self.k_proj   = nn.Linear(d_cross, d_embed, bias=in_proj_bias)
+        self.v_proj   = nn.Linear(d_cross, d_embed, bias=in_proj_bias)
+        self.out_proj = nn.Linear(d_embed, d_embed, bias=out_proj_bias)
+        self.n_heads = n_heads
+        self.d_head = d_embed // n_heads
+    
+    def forward(self, x, y):
+        # x (latent): # (Batch_Size, Seq_Len_Q, Dim_Q)
+        # y (context): # (Batch_Size, Seq_Len_KV, Dim_KV) = (Batch_Size, 77, 768)
 
         input_shape = x.shape
-        batch_size, sequence_length_query, d_embed = input_shape
+        batch_size, sequence_length, d_embed = input_shape
+        # Divide each embedding of Q into multiple heads such that d_heads * n_heads = Dim_Q
+        interim_shape = (batch_size, -1, self.n_heads, self.d_head)
+        
+        # (Batch_Size, Seq_Len_Q, Dim_Q) -> (Batch_Size, Seq_Len_Q, Dim_Q)
+        q = self.q_proj(x)
+        # (Batch_Size, Seq_Len_KV, Dim_KV) -> (Batch_Size, Seq_Len_KV, Dim_Q)
+        k = self.k_proj(y)
+        # (Batch_Size, Seq_Len_KV, Dim_KV) -> (Batch_Size, Seq_Len_KV, Dim_Q)
+        v = self.v_proj(y)
 
-        interim_shape = (batch_size, -1, self.num_heads, self.d_heads)
-
-        # multiply query by Wq
-        query = self.query_projection(x)
-        key = self.key_projection(y)
-        value = self.values_projection(y)
-
-        query = query.view(interim_shape).transpose(1, 2)
-        key = key.view(interim_shape).transpose(1, 2)
-        value = value.view(interim_shape).transpose(1, 2)
-
-        weight = query @ key.transpose(-1, -2)
-
-        weight /= math.sqrt(self.d_heads)
-
+        # (Batch_Size, Seq_Len_Q, Dim_Q) -> (Batch_Size, Seq_Len_Q, H, Dim_Q / H) -> (Batch_Size, H, Seq_Len_Q, Dim_Q / H)
+        q = q.view(interim_shape).transpose(1, 2) 
+        # (Batch_Size, Seq_Len_KV, Dim_Q) -> (Batch_Size, Seq_Len_KV, H, Dim_Q / H) -> (Batch_Size, H, Seq_Len_KV, Dim_Q / H)
+        k = k.view(interim_shape).transpose(1, 2) 
+        # (Batch_Size, Seq_Len_KV, Dim_Q) -> (Batch_Size, Seq_Len_KV, H, Dim_Q / H) -> (Batch_Size, H, Seq_Len_KV, Dim_Q / H)
+        v = v.view(interim_shape).transpose(1, 2) 
+        
+        # (Batch_Size, H, Seq_Len_Q, Dim_Q / H) @ (Batch_Size, H, Dim_Q / H, Seq_Len_KV) -> (Batch_Size, H, Seq_Len_Q, Seq_Len_KV)
+        weight = q @ k.transpose(-1, -2)
+        
+        # (Batch_Size, H, Seq_Len_Q, Seq_Len_KV)
+        weight /= math.sqrt(self.d_head)
+        
+        # (Batch_Size, H, Seq_Len_Q, Seq_Len_KV)
         weight = F.softmax(weight, dim=-1)
-
-        output = weight @ value
-
+        
+        # (Batch_Size, H, Seq_Len_Q, Seq_Len_KV) @ (Batch_Size, H, Seq_Len_KV, Dim_Q / H) -> (Batch_Size, H, Seq_Len_Q, Dim_Q / H)
+        output = weight @ v
+        
+        # (Batch_Size, H, Seq_Len_Q, Dim_Q / H) -> (Batch_Size, Seq_Len_Q, H, Dim_Q / H)
         output = output.transpose(1, 2).contiguous()
-
+        
+        # (Batch_Size, Seq_Len_Q, H, Dim_Q / H) -> (Batch_Size, Seq_Len_Q, Dim_Q)
         output = output.view(input_shape)
+        
+        # (Batch_Size, Seq_Len_Q, Dim_Q) -> (Batch_Size, Seq_Len_Q, Dim_Q)
+        output = self.out_proj(output)
 
-        output = self.output_projection(output)
-
+        # (Batch_Size, Seq_Len_Q, Dim_Q)
         return output
