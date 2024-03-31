@@ -3,6 +3,7 @@
 ## Youtube: Coding Stable Diffusion from scratch in PyTorch
 
 [source][1]
+[Instructions][2] for data
 
 ### What is a generative model?
 
@@ -67,6 +68,11 @@ Group normalization is layer normalization but with only a subset. You want grou
 because the convulution filtering basically groups similar items together. The whole idea of
 normalization is that we don't want the trainig to oscillate too much.
 
+NOTE:
+The `v1-5-pruned-emaonly.ckpt` model is trained only with the exponential moving average. If you
+want to fine tune the model later you'll want to use `v1-5-pruned.ckpt`. See the models availible
+[here][3]
+
 ### TODO
 
 - What is probability distribution
@@ -82,3 +88,5 @@ normalization is that we don't want the trainig to oscillate too much.
 - What is classifier-free guidance
 
 [1]: https://www.youtube.com/watch?v=ZBKpAp_6TGI
+[2]: https://github.com/hkproj/pytorch-stable-diffusion?tab=readme-ov-file
+[3]: https://huggingface.co/runwayml/stable-diffusion-v1-5/tree/main
