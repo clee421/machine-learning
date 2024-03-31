@@ -5,6 +5,8 @@
 [source][1]
 [Instructions][2] for data
 
+Denoising Diffusion Probabilistic Models: [paper][4] [github][5]
+
 ### What is a generative model?
 
 A generative model learns a probability distribution of the data set such
@@ -90,3 +92,5 @@ want to fine tune the model later you'll want to use `v1-5-pruned.ckpt`. See the
 [1]: https://www.youtube.com/watch?v=ZBKpAp_6TGI
 [2]: https://github.com/hkproj/pytorch-stable-diffusion?tab=readme-ov-file
 [3]: https://huggingface.co/runwayml/stable-diffusion-v1-5/tree/main
+[4]: https://arxiv.org/pdf/2006.11239.pdf
+[5]: https://github.com/hojonathanho/diffusion
