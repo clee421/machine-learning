@@ -21,7 +21,8 @@ class TimeEmbedding(nn.Module):
 
 class UNET_ResidualBlock(nn.Module):
     def __init__(self, input_channels: int, output_channels: int, n_time = 1280) -> None:
-        super().__init_()
+        super().__init__()
+
         self.group_norm_feature = nn.GroupNorm(32, input_channels)
         self.conv_feature = nn.Conv2d(input_channels, output_channels, kernel_size=3, padding=1)
         self.linear_time = nn.Linear(n_time, output_channels)
@@ -89,8 +90,8 @@ class UNET_AttentionBlock(nn.Module):
         #
         # There looks to be requests to add geglu to pytorch
         # https://github.com/pytorch/pytorch/issues/80168
-        self.linear_geglu_1 = nn.Linear(channels, 4 * channels * 2)
-        self.linear_geglu_2 = nn.Linear(channels, 4 * channels * 2)
+        self.linear_geglu_1  = nn.Linear(channels, 4 * channels * 2)
+        self.linear_geglu_2 = nn.Linear(4 * channels, channels)
 
         self.conv_output = nn.Conv2d(channels, channels, kernel_size=1, padding=0)
 
@@ -170,26 +171,26 @@ class SwitchSequential(nn.Sequential):
 
 class UNET(nn.Module):
     def __init__(self):
-        self.__init__()
+        super().__init__()
 
-        self.encoders = nn.Module([
+        self.encoders = nn.ModuleList([
             # (batch_size, 4, height / 8, height / 8) -> (batch_size, 320, height / 8, height / 8)
-            SwitchSequential(nn.Conv2d(4, 320, kernal_size=3, padding=1)),
+            SwitchSequential(nn.Conv2d(4, 320, kernel_size=3, padding=1)),
             SwitchSequential(UNET_ResidualBlock(320, 320), UNET_AttentionBlock(8, 40)),
             SwitchSequential(UNET_ResidualBlock(320, 320), UNET_AttentionBlock(8, 40)),
 
             # (batch_size, 320, height / 8, height / 8) -> (batch_size, 320, height / 16, height / 16)
-            SwitchSequential(nn.Conv2d(320, 320, kernal_size=3, stride=2, padding=1)),
+            SwitchSequential(nn.Conv2d(320, 320, kernel_size=3, stride=2, padding=1)),
             SwitchSequential(UNET_ResidualBlock(320, 640), UNET_AttentionBlock(8, 80)),
             SwitchSequential(UNET_ResidualBlock(640, 640), UNET_AttentionBlock(8, 80)),
 
             # (batch_size, 640, height / 16, height / 16) -> (batch_size, 640, height / 32, height / 32)
-            SwitchSequential(nn.Conv2d(640, 640, kernal_size=3, stride=2, padding=1)),
+            SwitchSequential(nn.Conv2d(640, 640, kernel_size=3, stride=2, padding=1)),
             SwitchSequential(UNET_ResidualBlock(640, 1280), UNET_AttentionBlock(8, 160)),
             SwitchSequential(UNET_ResidualBlock(1280, 1280), UNET_AttentionBlock(8, 160)),
 
             # (batch_size, 1280, height / 32, height / 32) -> (batch_size, 1280, height / 64, height / 64)
-            SwitchSequential(nn.Conv2d(1280, 1280, kernal_size=3, stride=2, padding=1)),
+            SwitchSequential(nn.Conv2d(1280, 1280, kernel_size=3, stride=2, padding=1)),
             SwitchSequential(UNET_ResidualBlock(1280, 1280)),
             SwitchSequential(UNET_ResidualBlock(1280, 1280)),
         ])
@@ -215,6 +216,26 @@ class UNET(nn.Module):
             SwitchSequential(UNET_ResidualBlock(640, 320), UNET_AttentionBlock(8, 40)),
             SwitchSequential(UNET_ResidualBlock(640, 320), UNET_AttentionBlock(8, 40)),
         ])
+
+    def forward(self, x, context, time):
+        # x: (Batch_Size, 4, Height / 8, Width / 8)
+        # context: (Batch_Size, Seq_Len, Dim)
+        # time: (1, 1280)
+
+        skip_connections = []
+        for layers in self.encoders:
+            x = layers(x, context, time)
+            skip_connections.append(x)
+
+        x = self.bottleneck(x, context, time)
+
+        for layers in self.decoders:
+            # Since we always concat with the skip connection of the encoder, the number of
+            # features increases before being sent to the decoder's layer
+            x = torch.cat((x, skip_connections.pop()), dim=1)
+            x = layers(x, context, time)
+
+        return x
 
 class UNET_OutputLayer(nn.Module):
     def __init__(self, input_channels: int, output_channels: int):

@@ -15,51 +15,51 @@ similar inputs.
 class VAE_Encoder(nn.Sequential):
     def __init__(self):
         # https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html
-        """
-        Notes for nn.Conv2d
+        # """
+        # Notes for nn.Conv2d
 
-        in_channels (int): Specifies the number of channels in the input image. For example,
-        for a grayscale image, this would be 1. For an RGB image, it would be 3.
+        # in_channels (int): Specifies the number of channels in the input image. For example,
+        # for a grayscale image, this would be 1. For an RGB image, it would be 3.
 
-        out_channels (int): Determines the number of filters (kernels) to apply to the input
-        image. This also corresponds to the number of feature maps (or output channels)
-        produced by the convolution.
+        # out_channels (int): Determines the number of filters (kernels) to apply to the input
+        # image. This also corresponds to the number of feature maps (or output channels)
+        # produced by the convolution.
 
-        kernel_size (int or tuple): Defines the size of the filter (kernel) to be used for
-        convolution. If it's an integer n, it implies a (n x n) square filter. If it's a
-        tuple (n, m), it specifies the filter size as (height, width).
+        # kernel_size (int or tuple): Defines the size of the filter (kernel) to be used for
+        # convolution. If it's an integer n, it implies a (n x n) square filter. If it's a
+        # tuple (n, m), it specifies the filter size as (height, width).
 
-        stride (int or tuple, optional): Controls the stride for the convolution, i.e., how
-        many pixels the filter moves across the input image each time. A stride of 1 means
-        moving the filter one pixel at a time. If it's an integer n, it implies a stride of
-        (n, n). If it's a tuple (n, m), it specifies the stride as (vertical stride,
-        horizontal stride). The default value is 1.
+        # stride (int or tuple, optional): Controls the stride for the convolution, i.e., how
+        # many pixels the filter moves across the input image each time. A stride of 1 means
+        # moving the filter one pixel at a time. If it's an integer n, it implies a stride of
+        # (n, n). If it's a tuple (n, m), it specifies the stride as (vertical stride,
+        # horizontal stride). The default value is 1.
 
-        padding (int or tuple, optional): Used to add padding to the input image. Padding
-        adds additional pixels around the input image. This parameter controls the amount
-        of padding. If it's an integer n, it adds n pixels of padding on all sides. If it's
-        a tuple (n, m), it adds padding of (n pixels on top and bottom, m pixels on left
-        and right). The default value is 0 (no padding).
+        # padding (int or tuple, optional): Used to add padding to the input image. Padding
+        # adds additional pixels around the input image. This parameter controls the amount
+        # of padding. If it's an integer n, it adds n pixels of padding on all sides. If it's
+        # a tuple (n, m), it adds padding of (n pixels on top and bottom, m pixels on left
+        # and right). The default value is 0 (no padding).
 
-        dilation (int or tuple, optional): Controls the spacing between the kernel elements.
-        It can be used to control the receptive field and the output size. A dilation of 1
-        means there is no spacing, i.e., the standard convolution. If it's an integer n, it
-        implies a dilation of (n, n). If it's a tuple (n, m), it specifies the dilation as
-        (vertical dilation, horizontal dilation). The default value is 1.
+        # dilation (int or tuple, optional): Controls the spacing between the kernel elements.
+        # It can be used to control the receptive field and the output size. A dilation of 1
+        # means there is no spacing, i.e., the standard convolution. If it's an integer n, it
+        # implies a dilation of (n, n). If it's a tuple (n, m), it specifies the dilation as
+        # (vertical dilation, horizontal dilation). The default value is 1.
 
-        groups (int, optional): Controls the connections between inputs and outputs.
-        groups=1 denotes a standard convolution where each input is convolved with every
-        output filter. groups=in_channels denotes a depthwise convolution, i.e., each input
-        channel is convolved with its own set of filters (of size out_channels / in_channels).
-        The default value is 1.
+        # groups (int, optional): Controls the connections between inputs and outputs.
+        # groups=1 denotes a standard convolution where each input is convolved with every
+        # output filter. groups=in_channels denotes a depthwise convolution, i.e., each input
+        # channel is convolved with its own set of filters (of size out_channels / in_channels).
+        # The default value is 1.
 
-        bias (bool, optional): If True, adds a learnable bias to the output. This is
-        typically set to True (the default) unless you are stacking several convolutional
-        layers together and using batch normalization.
+        # bias (bool, optional): If True, adds a learnable bias to the output. This is
+        # typically set to True (the default) unless you are stacking several convolutional
+        # layers together and using batch normalization.
 
-        For a visualization of a convultion you can check out this link
-        https://ezyang.github.io/convolution-visualizer/
-        """
+        # For a visualization of a convultion you can check out this link
+        # https://ezyang.github.io/convolution-visualizer/
+        # """
         super().__init__(
             # (batch_size, channel, height, width) -> (batch_size, 128, height, width)
             nn.Conv2d(3, 128, kernel_size=3, padding=1),
@@ -115,14 +115,14 @@ class VAE_Encoder(nn.Sequential):
 
             # (batch_size, 8, height/8, width/8) -> (batch_size, 8, height/8, width/8)
             nn.Conv2d(8, 8, kernel_size=1, padding=0),
-            """
-            So why is the model built like this?
-            A: Usually in deep learning communities, especially during research, we do not try to
-            reinvent the wheel. Whoever created the stable diffusion model, checks what kind of
-            similar model already exists that are working well. It's probable that whoever wrote
-            the stable diffusion model saw an architecture like above that has been working well
-            as a variational encoder and made small modifications.
-            """
+            # """
+            # So why is the model built like this?
+            # A: Usually in deep learning communities, especially during research, we do not try to
+            # reinvent the wheel. Whoever created the stable diffusion model, checks what kind of
+            # similar model already exists that are working well. It's probable that whoever wrote
+            # the stable diffusion model saw an architecture like above that has been working well
+            # as a variational encoder and made small modifications.
+            # """
         )
 
     def forward(self, x: torch.Tensor, noise: torch.Tensor) -> torch.Tensor:

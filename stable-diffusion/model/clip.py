@@ -86,7 +86,7 @@ class CLIP(nn.Module):
         # For converting the text tokens into numbers
         self.embedding = CLIPEmbedding(_VOCABULARY_SIZE, _NUM_EMBEDDING_VECTORS, _MAXIMUM_SEQUENCE_LENGTH)
 
-        self.layers = nn.Module([
+        self.layers = nn.ModuleList([
             CLIPLayer(_NUMBER_OF_HEADS, _NUM_EMBEDDING_VECTORS) for i in range(_CLIP_LAYER_SIZE)
         ])
 

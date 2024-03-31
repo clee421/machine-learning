@@ -111,7 +111,7 @@ class CrossAttention(nn.Module):
         # y (context): (batch_size, sequence_length_key_value, dim_key_value)
 
         input_shape = x.shape
-        batch_size, sequence_length_query = d_embed = input_shape
+        batch_size, sequence_length_query, d_embed = input_shape
 
         interim_shape = (batch_size, -1, self.num_heads, self.d_heads)
 

@@ -41,10 +41,10 @@ class VAE_ResidualBlock(nn.Module):
         super().__init__()
 
         # The channels are always 32 in stable diffusion
-        self.group_norm_1 =  nn.GroupNorm(32, in_channels)
+        self.group_norm_1 = nn.GroupNorm(32, in_channels)
         self.conv_1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
 
-        self.group_norm_2 =  nn.GroupNorm(32, out_channels)
+        self.group_norm_2 = nn.GroupNorm(32, out_channels)
         self.conv_2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
 
         if in_channels == out_channels:
@@ -107,7 +107,7 @@ class VAE_Decoder(nn.Sequential):
             nn.Upsample(scale_factor=2),
 
             nn.Conv2d(256, 256, kernel_size=3, padding=1),
-            VAE_ResidualBlock(512, 128),
+            VAE_ResidualBlock(256, 128),
             VAE_ResidualBlock(128, 128),
             VAE_ResidualBlock(128, 128),
 
