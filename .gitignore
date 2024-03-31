@@ -1,2 +1,3 @@
 .config/
 stable-diffusion/data/*
+stable-diffusion/model/__pycache__/*
