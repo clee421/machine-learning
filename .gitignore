@@ -1,3 +1,5 @@
 .config/
 stable-diffusion/data/*
 stable-diffusion/model/__pycache__/*
+
+lora/data/
