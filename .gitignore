@@ -3,3 +3,7 @@ stable-diffusion/data/*
 stable-diffusion/model/__pycache__/*
 
 lora/data/
+transformer/__pycache__
+transformer/opus_books_weights
+transformer/runs
+transformer/tokenizer_*.json
