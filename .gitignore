@@ -7,3 +7,6 @@ transformer/__pycache__
 transformer/opus_books_weights
 transformer/runs
 transformer/tokenizer_*.json
+
+stock/data/
+__pycache__
